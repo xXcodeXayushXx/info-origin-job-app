@@ -5,6 +5,9 @@ export default function JobPortal() {
   const [newJob, setNewJob] = useState({ postProfile: "", postDesc: "", reqExperience: "", postTechStack: "" });
   const [user, setUser] = useState(null);
   const [page, setPage] = useState("landing"); // landing, candidateLogin, candidateSignup, recruiterAuth
+  const [activeTab, setActiveTab] = useState("profile"); // profile, jobs
+  const [activeJobTab, setActiveJobTab] = useState("newJobs"); // newJobs, appliedJobs
+  const [appliedJobs, setAppliedJobs] = useState([]);
   const [authData, setAuthData] = useState({
     username: "",
     password: "",
@@ -23,7 +26,10 @@ export default function JobPortal() {
         
       fetch(endpoint)
         .then((res) => res.json())
-        .then((data) => setJobs(data));
+        .then((data) => {
+          setJobs(data);
+          setAppliedJobs(data.filter(job => job.hasApplied));
+        });
     }
   }, [user]);
 
@@ -139,6 +145,119 @@ export default function JobPortal() {
     .catch((err) => console.error("Error deleting job:", err));
   };
   
+  // Candidate dashboard components
+  const CandidateProfile = () => (
+    <div className="bg-white rounded-xl p-6 shadow-md">
+      <h3 className="text-2xl font-bold text-blue-800 mb-6">Profile Information</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-gray-600 font-semibold">Full Name</p>
+          <p className="text-blue-800">{user.name}</p>
+        </div>
+        <div>
+          <p className="text-gray-600 font-semibold">Username</p>
+          <p className="text-blue-800">{user.username}</p>
+        </div>
+        <div>
+          <p className="text-gray-600 font-semibold">Email</p>
+          <p className="text-blue-800">{user.email}</p>
+        </div>
+        <div>
+          <p className="text-gray-600 font-semibold">Contact</p>
+          <p className="text-blue-800">{user.contact}</p>
+        </div>
+        <div>
+          <p className="text-gray-600 font-semibold">City</p>
+          <p className="text-blue-800">{user.city}</p>
+        </div>
+        <div>
+          <p className="text-gray-600 font-semibold">Skills</p>
+          <p className="text-blue-800">{user.skills}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const JobTabs = () => (
+    <div className="space-y-6">
+      <div className="border-b border-gray-200">
+        <div className="flex space-x-8">
+          <button
+            className={`py-4 px-1 ${
+              activeJobTab === "newJobs"
+                ? "border-b-2 border-blue-500 text-blue-600"
+                : "text-gray-500 hover:text-blue-500"
+            }`}
+            onClick={() => setActiveJobTab("newJobs")}
+          >
+            Available Jobs
+          </button>
+          <button
+            className={`py-4 px-1 ${
+              activeJobTab === "appliedJobs"
+                ? "border-b-2 border-blue-500 text-blue-600"
+                : "text-gray-500 hover:text-blue-500"
+            }`}
+            onClick={() => setActiveJobTab("appliedJobs")}
+          >
+            Applied Jobs
+          </button>
+        </div>
+      </div>
+
+      {activeJobTab === "newJobs" ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {jobs.filter(job => !job.hasApplied).map((job) => (
+            <div
+              key={job.postId}
+              className="bg-white border border-blue-100 rounded-xl p-6 shadow-md hover:shadow-xl transition transform hover:-translate-y-2"
+            >
+              <h3 className="text-xl font-semibold text-blue-800 mb-2">{job.postProfile}</h3>
+              <p className="text-gray-600 mb-4">{job.postDesc}</p>
+              <p className="text-sm text-blue-600 mb-4">
+                Experience: {job.reqExperience} years
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Skills: {Array.isArray(job.postTechStack) ? job.postTechStack.join(", ") : job.postTechStack}
+                </p>
+                <button
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition"
+                  onClick={() => handleApply(job.postId)}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {appliedJobs.map((job) => (
+            <div
+              key={job.postId}
+              className="bg-white border border-blue-100 rounded-xl p-6 shadow-md"
+            >
+              <h3 className="text-xl font-semibold text-blue-800 mb-2">{job.postProfile}</h3>
+              <p className="text-gray-600 mb-4">{job.postDesc}</p>
+              <p className="text-sm text-blue-600 mb-4">
+                Experience: {job.reqExperience} years
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Skills: {Array.isArray(job.postTechStack) ? job.postTechStack.join(", ") : job.postTechStack}
+                </p>
+                <div className="bg-gray-100 text-gray-600 py-2 px-4 rounded-lg text-center">
+                  Applied
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (!user) {
     if (page === "landing") {
       return (
@@ -326,7 +445,7 @@ export default function JobPortal() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-8">
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+      <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold text-blue-800">
             Welcome, {user.name || user.username}
@@ -341,38 +460,33 @@ export default function JobPortal() {
         </div>
 
         {user.role === "candidate" ? (
-          <div>
-            <h2 className="text-2xl font-bold text-blue-700 mb-6">Available Jobs</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {jobs.map((job) => (
-                <div
-                  key={job.postId}
-                  className="bg-white border border-blue-100 rounded-xl p-6 shadow-md hover:shadow-xl transition transform hover:-translate-y-2"
+          <div className="space-y-6">
+            <div className="border-b border-gray-200">
+              <div className="flex space-x-8">
+                <button
+                  className={`py-4 px-1 ${
+                    activeTab === "profile"
+                      ? "border-b-2 border-blue-500 text-blue-600"
+                      : "text-gray-500 hover:text-blue-500"
+                  }`}
+                  onClick={() => setActiveTab("profile")}
                 >
-                  <h3 className="text-xl font-semibold text-blue-800 mb-2">{job.postProfile}</h3>
-                  <p className="text-gray-600 mb-4">{job.postDesc}</p>
-                  <p className="text-sm text-blue-600 mb-4">
-                    Experience: {job.reqExperience} years
-                  </p>
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
-                      Skills: {Array.isArray(job.postTechStack) ? job.postTechStack.join(", ") : job.postTechStack}
-                    </p>
-                    <button
-                      className={`w-full py-2 rounded-lg transition ${
-                        job.hasApplied
-                          ? "bg-gray-500 cursor-not-allowed"
-                          : "bg-green-500 hover:bg-green-600"
-                      } text-white`}
-                      onClick={() => !job.hasApplied && handleApply(job.postId)}
-                      disabled={job.hasApplied}
-                    >
-                      {job.hasApplied ? "Applied" : "Apply"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  Profile
+                </button>
+                <button
+                  className={`py-4 px-1 ${
+                    activeTab === "jobs"
+                      ? "border-b-2 border-blue-500 text-blue-600"
+                      : "text-gray-500 hover:text-blue-500"
+                  }`}
+                  onClick={() => setActiveTab("jobs")}
+                >
+                  Jobs
+                </button>
+              </div>
             </div>
+
+            {activeTab === "profile" ? <CandidateProfile /> : <JobTabs />}
           </div>
         ) : (
           <div>
