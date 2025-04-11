@@ -4,42 +4,55 @@ const cors = require("cors");
 const app = express();
 const PORT = 8080;
 
-// Middleware
+
 app.use(cors());
 app.use(express.json());
 
 let jobId = 3;
 
-// Dummy in-memory users (Replace with DB in production)
 const candidates = [];
-const recruiters = [];
+const jobApplications = []; // Store job applications
 
-// **POST /signup** - Register a new user (Recruiter or Candidate)
-app.post("/signup", (req, res) => {
-    const { username, password, role } = req.body;
+// Predefined recruiter credentials
+const recruiter = {
+    id: 1,
+    username: "admin",
+    password: "admin123"
+};
 
-    if (!role || (role !== "candidate" && role !== "recruiter")) {
-        return res.status(400).json({ message: "Invalid role! Must be 'candidate' or 'recruiter'." });
+app.post("/signup/candidate", (req, res) => {
+    const { username, password, name, email, contact, city, skills } = req.body;
+
+    // Validate required fields
+    if (!username || !password || !name || !email || !contact || !city || !skills) {
+        return res.status(400).json({ message: "All fields are required!" });
     }
 
-    const newUser = { id: Date.now(), username, password, role }; // Plain text password (not recommended for real apps)
-
-    if (role === "candidate") {
-        if (candidates.find((user) => user.username === username)) {
-            return res.status(400).json({ message: "Candidate already exists!" });
-        }
-        candidates.push(newUser);
-    } else if (role === "recruiter") {
-        if (recruiters.find((user) => user.username === username)) {
-            return res.status(400).json({ message: "Recruiter already exists!" });
-        }
-        recruiters.push(newUser);
+    // Check if candidate already exists
+    if (candidates.find((user) => user.username === username)) {
+        return res.status(400).json({ message: "Username already exists!" });
     }
 
-    res.json({ message: "Signup successful!", user: newUser });
+    // Create new candidate
+    const newCandidate = {
+        id: Date.now(),
+        username,
+        password,
+        name,
+        email,
+        contact,
+        city,
+        skills,
+        role: "candidate"
+    };
+
+    candidates.push(newCandidate);
+    
+    // Remove password from response
+    const { password: _, ...candidateResponse } = newCandidate;
+    res.json({ message: "Signup successful!", user: candidateResponse });
 });
 
-// **POST /login** - Authenticate user
 app.post("/login", (req, res) => {
     const { username, password, role } = req.body;
     
@@ -51,18 +64,24 @@ app.post("/login", (req, res) => {
 
     if (role === "candidate") {
         user = candidates.find((u) => u.username === username && u.password === password);
+        if (user) {
+            const { password: _, ...userResponse } = user;
+            return res.json({
+                message: `Login successful! Welcome, ${user.name}.`,
+                user: userResponse
+            });
+        }
     } else if (role === "recruiter") {
-        user = recruiters.find((u) => u.username === username && u.password === password);
+        if (username === recruiter.username && password === recruiter.password) {
+            const { password: _, ...recruiterResponse } = recruiter;
+            return res.json({
+                message: "Login successful! Welcome, Recruiter.",
+                user: { ...recruiterResponse, role: "recruiter" }
+            });
+        }
     }
 
-    if (!user) {
-        return res.status(401).json({ message: "Invalid credentials!" });
-    }
-
-    res.json({
-        message: `Login successful! Welcome, ${user.username}.`,
-        user: { id: user.id, username: user.username, role: user.role },
-    });
+    return res.status(401).json({ message: "Invalid credentials!" });
 });
 
 
@@ -71,30 +90,83 @@ app.post("/logout", (req, res) => {
   });
 
 
-// Dummy in-memory job posts (Replace with DB in production)
+
 let jobPosts = [
   {
     postId: 1,
-    postProfile: "Software Engineer",
-    postDesc: "Develop and maintain web applications.",
-    reqExperience: 3,
-    postTechStack: ["JavaScript", "React", "Node.js"],
+    postProfile: "postProfile 1",
+    postDesc: "postDesc1",
+    reqExperience: 1,
+    postTechStack: ["postTechStack1", "postTechStack2", "postTechStack3"],
   },
   {
     postId: 2,
-    postProfile: "Data Scientist",
-    postDesc: "Work with ML models and big data.",
-    reqExperience: 5,
-    postTechStack: ["Python", "TensorFlow", "SQL"],
+    postProfile: "postProfile 2",
+    postDesc: "postDesc2",
+    reqExperience: 2,
+    postTechStack: ["postTechStack1", "postTechStack2", "postTechStack3"],
   },
 ];
 
-// **GET /jobPosts** - Fetch all job posts
-app.get("/jobPosts", (req, res) => {
-  res.json(jobPosts);
+// Get all job posts with application status for a candidate
+app.get("/jobPosts/:candidateId", (req, res) => {
+  const candidateId = parseInt(req.params.candidateId);
+  const jobsWithStatus = jobPosts.map(job => {
+    const hasApplied = jobApplications.some(
+      app => app.jobId === job.postId && app.candidateId === candidateId
+    );
+    return { ...job, hasApplied };
+  });
+  res.json(jobsWithStatus);
 });
 
-// **GET /jobPost/:id** - Fetch a job post by ID
+// Apply for a job
+app.post("/apply", (req, res) => {
+  const { candidateId, jobId } = req.body;
+  
+  // Check if already applied
+  const existingApplication = jobApplications.find(
+    app => app.jobId === jobId && app.candidateId === candidateId
+  );
+  
+  if (existingApplication) {
+    return res.status(400).json({ message: "Already applied to this job!" });
+  }
+  
+  // Create new application
+  const application = {
+    id: Date.now(),
+    candidateId,
+    jobId,
+    appliedAt: new Date(),
+    status: "pending" // pending, accepted, rejected
+  };
+  
+  jobApplications.push(application);
+  res.json({ message: "Application submitted successfully!", application });
+});
+
+// Get applications for a job (for recruiter)
+app.get("/applications/:jobId", (req, res) => {
+  const jobId = parseInt(req.params.jobId);
+  const applications = jobApplications
+    .filter(app => app.jobId === jobId)
+    .map(app => {
+      const candidate = candidates.find(c => c.id === app.candidateId);
+      return {
+        ...app,
+        candidate: candidate ? {
+          name: candidate.name,
+          email: candidate.email,
+          contact: candidate.contact,
+          city: candidate.city,
+          skills: candidate.skills
+        } : null
+      };
+    });
+  res.json(applications);
+});
+
 app.get("/jobPost/:id", (req, res) => {
   const id = parseInt(req.params.id);
   const job = jobPosts.find((post) => post.postId === id);
@@ -105,14 +177,12 @@ app.get("/jobPost/:id", (req, res) => {
   }
 });
 
-// **POST /jobPost** - Create a new job post
 app.post("/jobPost", (req, res) => {
   const newJob = { postId: jobId++, ...req.body };
   jobPosts.push(newJob);
   res.json({ message: "Job post created successfully!", newJob });
 });
 
-// **PUT /jobPost/:id** - Update an existing job post
 app.put("/jobPost/:id", (req, res) => {
   const id = parseInt(req.params.id);
   const index = jobPosts.findIndex((post) => post.postId === id);
@@ -124,14 +194,12 @@ app.put("/jobPost/:id", (req, res) => {
   }
 });
 
-// **DELETE /jobPost/:id** - Delete a job post
 app.delete("/jobPost/:id", (req, res) => {
   const id = parseInt(req.params.id);
   jobPosts = jobPosts.filter((post) => post.postId !== id);
   res.json({ message: "Job post deleted successfully!" });
 });
 
-// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
