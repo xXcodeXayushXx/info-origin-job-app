@@ -2,12 +2,17 @@ import { useState, useEffect } from "react";
 
 export default function JobPortal() {
   const [jobs, setJobs] = useState([]);
+  const [candidates, setCandidates] = useState([]);
   const [newJob, setNewJob] = useState({ postProfile: "", postDesc: "", reqExperience: "", postTechStack: "" });
   const [user, setUser] = useState(null);
   const [page, setPage] = useState("landing"); // landing, candidateLogin, candidateSignup, recruiterAuth
   const [activeTab, setActiveTab] = useState("profile"); // profile, jobs
+  const [activeRecruiterTab, setActiveRecruiterTab] = useState("candidates");
   const [activeJobTab, setActiveJobTab] = useState("newJobs"); // newJobs, appliedJobs
   const [appliedJobs, setAppliedJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [jobApplications, setJobApplications] = useState([]);
+  const [showApplications, setShowApplications] = useState(false);
   const [authData, setAuthData] = useState({
     username: "",
     password: "",
@@ -20,16 +25,23 @@ export default function JobPortal() {
 
   useEffect(() => {
     if (user) {
-      const endpoint = user.role === "candidate" 
-        ? `http://localhost:8080/jobPosts/${user.id}`
-        : "http://localhost:8080/jobPosts/0";
-        
-      fetch(endpoint)
-        .then((res) => res.json())
-        .then((data) => {
-          setJobs(data);
-          setAppliedJobs(data.filter(job => job.hasApplied));
+      if (user.role === "candidate") {
+        fetch(`http://localhost:8080/jobPosts/${user.id}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setJobs(data);
+            setAppliedJobs(data.filter(job => job.hasApplied));
+          });
+      } else {
+        // Recruiter: fetch jobs and candidates
+        Promise.all([
+          fetch("http://localhost:8080/jobPosts/0").then(res => res.json()),
+          fetch("http://localhost:8080/candidates").then(res => res.json())
+        ]).then(([jobsData, candidatesData]) => {
+          setJobs(jobsData);
+          setCandidates(candidatesData);
         });
+      }
     }
   }, [user]);
 
@@ -144,7 +156,17 @@ export default function JobPortal() {
     })
     .catch((err) => console.error("Error deleting job:", err));
   };
-  
+
+  const handleViewApplications = (job) => {
+    setSelectedJob(job);
+    fetch(`http://localhost:8080/applications/${job.postId}`)
+      .then(res => res.json())
+      .then(data => {
+        setJobApplications(data);
+        setShowApplications(true);
+      });
+  };
+
   // Candidate dashboard components
   const CandidateProfile = () => (
     <div className="bg-white rounded-xl p-6 shadow-md">
@@ -255,6 +277,166 @@ export default function JobPortal() {
           ))}
         </div>
       )}
+    </div>
+  );
+
+  // Recruiter dashboard components
+  const CandidatesTab = () => (
+    <div className="bg-white rounded-xl p-6 shadow-md">
+      <h3 className="text-2xl font-bold text-blue-800 mb-6">Registered Candidates</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {candidates.map((candidate) => (
+              <tr key={candidate.id}>
+                <td className="px-6 py-4 whitespace-nowrap">{candidate.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{candidate.email}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{candidate.contact}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{candidate.city}</td>
+                <td className="px-6 py-4">{candidate.skills}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const JobsTab = () => (
+    <div className="space-y-6">
+      <div className="bg-blue-50 rounded-xl p-6">
+        <h3 className="text-2xl font-bold text-blue-800 mb-6">Post New Job</h3>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <input
+            className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Job Title"
+            value={newJob.postProfile}
+            onChange={(e) => setNewJob({ ...newJob, postProfile: e.target.value })}
+          />
+          <input
+            className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Description"
+            value={newJob.postDesc}
+            onChange={(e) => setNewJob({ ...newJob, postDesc: e.target.value })}
+          />
+          <input
+            type="number"
+            className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Experience"
+            value={newJob.reqExperience}
+            onChange={(e) => setNewJob({ ...newJob, reqExperience: e.target.value })}
+          />
+          <input
+            className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Tech Stack (comma separated)"
+            value={newJob.postTechStack}
+            onChange={(e) => setNewJob({ ...newJob, postTechStack: e.target.value.split(",") })}
+          />
+        </div>
+        <button
+          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
+          onClick={handlePostJob}
+        >
+          Post Job
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 shadow-md">
+        <h3 className="text-2xl font-bold text-blue-800 mb-6">Job Listings</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Experience</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tech Stack</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {jobs.map((job) => (
+                <tr key={job.postId}>
+                  <td className="px-6 py-4 whitespace-nowrap">{job.postProfile}</td>
+                  <td className="px-6 py-4">{job.postDesc}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{job.reqExperience} years</td>
+                  <td className="px-6 py-4">{Array.isArray(job.postTechStack) ? job.postTechStack.join(", ") : job.postTechStack}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      className="text-blue-600 hover:text-blue-800 mr-4"
+                      onClick={() => handleViewApplications(job)}
+                    >
+                      View Applications
+                    </button>
+                    <button
+                      className="text-red-600 hover:text-red-800"
+                      onClick={() => handleDeleteJob(job.postId)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Applications Dialog
+  const ApplicationsDialog = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-2xl font-bold text-blue-800">
+            Applications for {selectedJob?.postProfile}
+          </h3>
+          <button
+            className="text-gray-600 hover:text-gray-800"
+            onClick={() => setShowApplications(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied On</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {jobApplications.map((application) => (
+                <tr key={application.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">{application.candidate.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{application.candidate.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{application.candidate.contact}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{application.candidate.city}</td>
+                  <td className="px-6 py-4">{application.candidate.skills}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {new Date(application.appliedAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 
@@ -445,7 +627,7 @@ export default function JobPortal() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-8">
-      <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+      <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold text-blue-800">
             Welcome, {user.name || user.username}
@@ -489,67 +671,37 @@ export default function JobPortal() {
             {activeTab === "profile" ? <CandidateProfile /> : <JobTabs />}
           </div>
         ) : (
-          <div>
-            <h2 className="text-2xl font-bold text-blue-700 mb-6">Manage Jobs</h2>
-            <div className="bg-blue-50 rounded-xl p-6 mb-8">
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <input
-                  className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Job Title"
-                  value={newJob.postProfile}
-                  onChange={(e) => setNewJob({ ...newJob, postProfile: e.target.value })}
-                />
-                <input
-                  className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Description"
-                  value={newJob.postDesc}
-                  onChange={(e) => setNewJob({ ...newJob, postDesc: e.target.value })}
-                />
-                <input
-                  type="number"
-                  className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Experience"
-                  value={newJob.reqExperience}
-                  onChange={(e) => setNewJob({ ...newJob, reqExperience: e.target.value })}
-                />
-                <input
-                  className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Tech Stack"
-                  value={newJob.postTechStack}
-                  onChange={(e) => setNewJob({ ...newJob, postTechStack: e.target.value.split(",") })}
-                />
+          <div className="space-y-6">
+            <div className="border-b border-gray-200">
+              <div className="flex space-x-8">
+                <button
+                  className={`py-4 px-1 ${
+                    activeRecruiterTab === "candidates"
+                      ? "border-b-2 border-blue-500 text-blue-600"
+                      : "text-gray-500 hover:text-blue-500"
+                  }`}
+                  onClick={() => setActiveRecruiterTab("candidates")}
+                >
+                  Candidates
+                </button>
+                <button
+                  className={`py-4 px-1 ${
+                    activeRecruiterTab === "jobs"
+                      ? "border-b-2 border-blue-500 text-blue-600"
+                      : "text-gray-500 hover:text-blue-500"
+                  }`}
+                  onClick={() => setActiveRecruiterTab("jobs")}
+                >
+                  Jobs
+                </button>
               </div>
-              <button
-                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
-                onClick={handlePostJob}
-              >
-                Post Job
-              </button>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {jobs.map((job) => (
-                <div
-                  key={job.postId}
-                  className="bg-white border border-blue-100 rounded-xl p-6 shadow-md hover:shadow-xl transition transform hover:-translate-y-2"
-                >
-                  <h3 className="text-xl font-semibold text-blue-800 mb-2">{job.postProfile}</h3>
-                  <p className="text-gray-600 mb-4">{job.postDesc}</p>
-                  <p className="text-sm text-blue-600 mb-4">
-                    Experience: {job.reqExperience} years
-                  </p>
-                  <button
-                    className="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
-                    onClick={() => handleDeleteJob(job.postId)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
+            {activeRecruiterTab === "candidates" ? <CandidatesTab /> : <JobsTab />}
           </div>
         )}
       </div>
+      {showApplications && <ApplicationsDialog />}
     </div>
   );
 }

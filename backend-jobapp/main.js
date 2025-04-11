@@ -200,6 +200,13 @@ app.delete("/jobPost/:id", (req, res) => {
   res.json({ message: "Job post deleted successfully!" });
 });
 
+// Get all candidates (for recruiter)
+app.get("/candidates", (req, res) => {
+  // Remove sensitive information like passwords
+  const sanitizedCandidates = candidates.map(({ password, ...candidate }) => candidate);
+  res.json(sanitizedCandidates);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
