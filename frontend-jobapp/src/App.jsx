@@ -22,6 +22,9 @@ export default function JobPortal() {
     city: "",
     skills: ""
   });
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [previousPage, setPreviousPage] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -45,6 +48,20 @@ export default function JobPortal() {
     }
   }, [user]);
 
+  const handleRecruiterAddCandidate = () => {
+    setPreviousPage(activeRecruiterTab);
+    setAuthData({
+      username: "",
+      password: "",
+      name: "",
+      email: "",
+      contact: "",
+      city: "",
+      skills: ""
+    });
+    setPage("candidateSignup");
+  };
+
   const handleCandidateAuth = (endpoint) => {
     fetch(`http://localhost:8080/${endpoint}`, {
       method: "POST",
@@ -54,8 +71,21 @@ export default function JobPortal() {
       .then((res) => res.json())
       .then((data) => {
         if (data.user) {
-          setUser(data.user);
-          setPage("landing");
+          if (previousPage) {
+            // If recruiter is adding candidate
+            setPage("landing");
+            setToastMessage("Candidate created successfully!");
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
+            // Refresh candidates list
+            fetch("http://localhost:8080/candidates")
+              .then(res => res.json())
+              .then(data => setCandidates(data));
+          } else {
+            // Normal candidate signup
+            setUser(data.user);
+            setPage("landing");
+          }
         } else {
           alert(data.message);
         }
@@ -283,7 +313,15 @@ export default function JobPortal() {
   // Recruiter dashboard components
   const CandidatesTab = () => (
     <div className="bg-white rounded-xl p-6 shadow-md">
-      <h3 className="text-2xl font-bold text-blue-800 mb-6">Registered Candidates</h3>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold text-blue-800">Registered Candidates</h3>
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center"
+          onClick={handleRecruiterAddCandidate}
+        >
+          <span className="text-xl mr-1">+</span> Add Candidate
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -440,7 +478,14 @@ export default function JobPortal() {
     </div>
   );
 
-  if (!user) {
+  // Toast Component
+  const Toast = () => (
+    <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+      {toastMessage}
+    </div>
+  );
+
+  if (!user && page !== "candidateSignup") {
     if (page === "landing") {
       return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
@@ -513,78 +558,6 @@ export default function JobPortal() {
       );
     }
 
-    if (page === "candidateSignup") {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-          <div className="bg-white shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-blue-800">Candidate Registration</h2>
-              <button
-                className="text-blue-600 hover:text-blue-800"
-                onClick={() => setPage("candidateLogin")}
-              >
-                Back to Login
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Username"
-                value={authData.username}
-                onChange={(e) => setAuthData(prev => ({ ...prev, username: e.target.value }))}
-              />
-              <input
-                type="password"
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Password"
-                value={authData.password}
-                onChange={(e) => setAuthData(prev => ({ ...prev, password: e.target.value }))}
-              />
-              <input
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Full Name"
-                value={authData.name}
-                onChange={(e) => setAuthData(prev => ({ ...prev, name: e.target.value }))}
-              />
-              <input
-                type="email"
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Email"
-                value={authData.email}
-                onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
-              />
-              <input
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Contact Number"
-                value={authData.contact}
-                onChange={(e) => setAuthData(prev => ({ ...prev, contact: e.target.value }))}
-              />
-              <input
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="City"
-                value={authData.city}
-                onChange={(e) => setAuthData(prev => ({ ...prev, city: e.target.value }))}
-              />
-              <input
-                className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
-                placeholder="Skills (comma separated)"
-                value={authData.skills}
-                onChange={(e) => setAuthData(prev => ({ ...prev, skills: e.target.value }))}
-              />
-            </div>
-            <div className="mt-6">
-              <button
-                className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition"
-                onClick={() => handleCandidateAuth("signup/candidate")}
-              >
-                Create Account
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     if (page === "recruiterAuth") {
       return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
@@ -625,6 +598,90 @@ export default function JobPortal() {
     }
   }
 
+  // Handle candidateSignup page for both scenarios (logged in recruiter and non-logged in candidate)
+  if (page === "candidateSignup") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+        <div className="bg-white shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl p-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-3xl font-bold text-blue-800">
+              {previousPage ? "Add New Candidate" : "Candidate Registration"}
+            </h2>
+            <button
+              className="text-blue-600 hover:text-blue-800"
+              onClick={() => {
+                if (previousPage) {
+                  setPage("landing");
+                  setActiveRecruiterTab(previousPage);
+                  setPreviousPage(null);
+                } else {
+                  setPage("candidateLogin");
+                }
+              }}
+            >
+              {previousPage ? "Back to Dashboard" : "Back to Login"}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Username"
+              value={authData.username}
+              onChange={(e) => setAuthData(prev => ({ ...prev, username: e.target.value }))}
+            />
+            <input
+              type="password"
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Password"
+              value={authData.password}
+              onChange={(e) => setAuthData(prev => ({ ...prev, password: e.target.value }))}
+            />
+            <input
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Full Name"
+              value={authData.name}
+              onChange={(e) => setAuthData(prev => ({ ...prev, name: e.target.value }))}
+            />
+            <input
+              type="email"
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Email"
+              value={authData.email}
+              onChange={(e) => setAuthData(prev => ({ ...prev, email: e.target.value }))}
+            />
+            <input
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Contact Number"
+              value={authData.contact}
+              onChange={(e) => setAuthData(prev => ({ ...prev, contact: e.target.value }))}
+            />
+            <input
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="City"
+              value={authData.city}
+              onChange={(e) => setAuthData(prev => ({ ...prev, city: e.target.value }))}
+            />
+            <input
+              className="px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+              placeholder="Skills (comma separated)"
+              value={authData.skills}
+              onChange={(e) => setAuthData(prev => ({ ...prev, skills: e.target.value }))}
+            />
+          </div>
+          <div className="mt-6">
+            <button
+              className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition"
+              onClick={() => handleCandidateAuth("signup/candidate")}
+            >
+              Create Account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main dashboard return for logged-in users
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-8">
       <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
@@ -702,6 +759,7 @@ export default function JobPortal() {
         )}
       </div>
       {showApplications && <ApplicationsDialog />}
+      {showToast && <Toast />}
     </div>
   );
 }
